@@ -1,5 +1,7 @@
 package org.jivesoftware.openfire.plugin.rest.service;
 
+import java.util.List;
+
 import javax.annotation.PostConstruct;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
@@ -19,6 +21,7 @@ import org.jivesoftware.openfire.plugin.rest.exceptions.ExceptionType;
 import org.jivesoftware.openfire.plugin.rest.exceptions.ServiceException;
 import org.jivesoftware.openfire.user.UserAlreadyExistsException;
 import org.jivesoftware.openfire.user.UserNotFoundException;
+import org.xmpp.packet.JID;
 
 @Path("restapi/v1/users/{username}/roster")
 public class UserRosterService {
@@ -38,6 +41,31 @@ public class UserRosterService {
     @Produces({MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON})
     public RosterEntities getUserRoster(@PathParam("username") String username) throws ServiceException {
         return plugin.getRosterEntities(username);
+    }
+
+    @POST
+    @Produces({MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON})
+    @Path("/cleanup")
+    public void cleanupUserRoster(@PathParam("username") String username) throws ServiceException, SharedGroupException {
+        RosterEntities rosterEntities = plugin.getRosterEntities(username);
+        List<RosterItemEntity> roster = rosterEntities.getRoster();
+
+        for (RosterItemEntity item : roster) {
+            JID itemJID = new JID(item.getJid());
+            String itemUsername = itemJID.getNode();
+
+            plugin.deleteRosterItem(username, item.getJid());
+
+            RosterEntities itemRosterEntities = plugin.getRosterEntities(itemUsername);
+            List<RosterItemEntity> itemRoster = itemRosterEntities.getRoster();
+
+            for (RosterItemEntity itemItem : itemRoster) {
+                JID itemItemJID = new JID(item.getJid());
+                if (itemItemJID.getNode().equals(username)) {
+                    plugin.deleteRosterItem(itemUsername, itemItem.getJid());
+                }
+            }
+        }
     }
 
     @POST
